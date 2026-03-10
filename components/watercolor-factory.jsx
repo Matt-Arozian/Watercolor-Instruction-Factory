@@ -291,6 +291,18 @@ export default function WatercolorFactory() {
         <span style={{ color: MUTED, fontSize: 13, fontStyle: "italic" }}>
           Upload any image — receive beginner, intermediate &amp; expert painting guides
         </span>
+        <a
+          href="/history"
+          style={{
+            marginLeft: "auto", color: ACCENT, textDecoration: "none",
+            fontSize: 13, fontFamily: "Georgia, serif", opacity: 0.7,
+            transition: "opacity 0.2s", whiteSpace: "nowrap",
+          }}
+          onMouseOver={e => e.target.style.opacity = 1}
+          onMouseOut={e => e.target.style.opacity = 0.7}
+        >
+          History →
+        </a>
       </div>
 
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>

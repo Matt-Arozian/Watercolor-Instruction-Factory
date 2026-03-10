@@ -141,6 +141,23 @@ export async function POST(request) {
       )
     }
 
+    // Generate thumbnail and save to history (best-effort — never blocks response)
+    try {
+      const sharp = (await import("sharp")).default
+      const imgBuffer = Buffer.from(imageB64, "base64")
+      const thumbBuffer = await sharp(imgBuffer)
+        .resize(200, null, { withoutEnlargement: true })
+        .jpeg({ quality: 70 })
+        .toBuffer()
+      const thumbnail = thumbBuffer.toString("base64")
+
+      const { saveAnalysis } = await import("@/lib/history")
+      const id = crypto.randomUUID()
+      saveAnalysis(session.user.email, { id, thumbnail, analysis: parsed })
+    } catch (saveErr) {
+      console.error("History save error:", saveErr)
+    }
+
     return Response.json(parsed)
   } catch (err) {
     console.error("Analyze error:", err)
