@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 
 const ACCENT = "#c8a97e"
 const DARK = "#1a1714"
@@ -12,7 +12,13 @@ const LEVELS = ["beginner", "intermediate", "expert"]
 const LEVEL_LABELS = { beginner: "Beginner", intermediate: "Intermediate", expert: "Expert" }
 const LEVEL_COLORS = { beginner: "#7eb8c8", intermediate: "#c8a97e", expert: "#c87e7e" }
 
-function Spinner() {
+function Spinner({ elapsed, onCancel }) {
+  const mins = Math.floor(elapsed / 60)
+  const secs = elapsed % 60
+  const timeStr = mins > 0
+    ? `${mins}:${secs.toString().padStart(2, "0")}`
+    : `0:${secs.toString().padStart(2, "0")}`
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "48px 0" }}>
       <div style={{
@@ -20,9 +26,28 @@ function Spinner() {
         borderTop: `3px solid ${ACCENT}`, borderRadius: "50%",
         animation: "spin 1s linear infinite"
       }} />
-      <p style={{ color: MUTED, fontFamily: "'Georgia', serif", fontStyle: "italic", fontSize: 14 }}>
+      <p style={{ color: MUTED, fontFamily: "'Georgia', serif", fontStyle: "italic", fontSize: 14, margin: 0 }}>
         Analyzing your image…
       </p>
+      <span style={{ color: ACCENT, fontFamily: "'Georgia', serif", fontSize: 18, fontVariantNumeric: "tabular-nums" }}>
+        {timeStr}
+      </span>
+      <p style={{ color: MUTED, fontFamily: "'Georgia', serif", fontSize: 13, margin: 0, textAlign: "center", maxWidth: 300 }}>
+        Please be patient. Analyzing your image may take a few minutes.
+      </p>
+      <button
+        onClick={onCancel}
+        style={{
+          marginTop: 4, padding: "8px 20px", background: "transparent",
+          border: `1px solid #c87e7e60`, borderRadius: 6, cursor: "pointer",
+          color: "#c87e7e", fontFamily: "'Georgia', serif", fontSize: 13,
+          transition: "background 0.2s, border-color 0.2s"
+        }}
+        onMouseOver={e => { e.target.style.background = "#c87e7e15"; e.target.style.borderColor = "#c87e7e" }}
+        onMouseOut={e => { e.target.style.background = "transparent"; e.target.style.borderColor = "#c87e7e60" }}
+      >
+        Cancel Analysis
+      </button>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
@@ -154,7 +179,16 @@ export default function WatercolorFactory() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [dragging, setDragging] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const fileRef = useRef()
+  const abortRef = useRef(null)
+
+  // Elapsed timer while loading
+  useEffect(() => {
+    if (!loading) { setElapsed(0); return }
+    const id = setInterval(() => setElapsed(s => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [loading])
 
   const processFile = useCallback((file) => {
     if (!file) return
@@ -198,6 +232,8 @@ export default function WatercolorFactory() {
 
   const analyze = async () => {
     if (!imageB64) return
+    const controller = new AbortController()
+    abortRef.current = controller
     setLoading(true)
     setError(null)
     setAnalysis(null)
@@ -206,6 +242,7 @@ export default function WatercolorFactory() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageB64 }),
+        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) {
@@ -213,6 +250,7 @@ export default function WatercolorFactory() {
       }
       setAnalysis(data)
     } catch (err) {
+      if (err.name === "AbortError") return // cancelled by user
       const msg = err?.message || String(err)
       if (msg.includes("fetch")) {
         setError("Network error — image may be too large or connection failed. Try a smaller image.")
@@ -221,8 +259,17 @@ export default function WatercolorFactory() {
       }
       console.error(err)
     } finally {
+      abortRef.current = null
       setLoading(false)
     }
+  }
+
+  const cancelAnalysis = () => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+    setLoading(false)
   }
 
   return (
@@ -309,7 +356,7 @@ export default function WatercolorFactory() {
         )}
 
         {/* Loading */}
-        {loading && <Spinner />}
+        {loading && <Spinner elapsed={elapsed} onCancel={cancelAnalysis} />}
 
         {/* Error */}
         {error && (
